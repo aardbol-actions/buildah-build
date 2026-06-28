@@ -64,7 +64,7 @@ jobs:
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: 'latest ${{ github.sha }}'
-          base-image: 'registry.access.redhat.com/openjdk/openjdk-11-rhel7'
+          base-image: 'registry.access.redhat.com/ubi9/openjdk-17:latest'
           # To avoid hardcoding a particular version of the binary.
           content: |
             ./spring-petclinic/target/spring-petclinic-*.jar
