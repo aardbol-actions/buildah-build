@@ -5,6 +5,7 @@
 [![CodeQL](https://github.com/aardbol/buildah-build/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/aardbol/buildah-build/actions/workflows/codeql-analysis.yml)
 [![Trivy](https://github.com/aardbol/buildah-build/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/aardbol/buildah-build/actions/workflows/trivy-scan.yml)
 [![Link checker](https://github.com/aardbol/buildah-build/actions/workflows/link_check.yml/badge.svg)](https://github.com/aardbol/buildah-build/actions/workflows/link_check.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/aardbol/buildah-build/badge)](https://securityscorecards.dev/viewer/?uri=github.com/aardbol/buildah-build)
 <br>
 <br>
 [![tag badge](https://img.shields.io/github/v/tag/aardbol/buildah-build)](https://github.com/aardbol/buildah-build/tags)
