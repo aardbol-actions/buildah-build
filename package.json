@@ -32,10 +32,10 @@
     "@eslint/js": "^10.0.1",
     "@types/ini": "4.1.1",
     "@types/node": "^26.0",
-    "@typescript-eslint/eslint-plugin": "8.62.0",
-    "@typescript-eslint/parser": "8.62.0",
+    "@typescript-eslint/eslint-plugin": "8.63.0",
+    "@typescript-eslint/parser": "8.63.0",
     "@vercel/ncc": "0.44.1",
-    "eslint": "10.6.0",
+    "eslint": "10.7.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1"
   }
