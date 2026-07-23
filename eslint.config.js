@@ -95,6 +95,12 @@ module.exports = tseslint.config(
     },
   },
   {
+    files: ["src/generated/**"],
+    rules: {
+      "max-len": 0,
+    },
+  },
+  {
     ignores: ["dist/", "node_modules/", "out/", "lib/", ".eslintrc.js", "eslint.config.js"],
   },
 );
