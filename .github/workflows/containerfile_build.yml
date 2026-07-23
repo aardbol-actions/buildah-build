@@ -39,22 +39,12 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
-
     steps:
 
       - name: Checkout Buildah action
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: "buildah-build"
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash buildah-build/.github/install_latest_buildah.sh
 
       - name: Create Dockerfile
         run: |

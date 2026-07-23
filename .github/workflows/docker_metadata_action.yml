@@ -36,10 +36,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     env:
       IMAGE_NAME: "hello-world"
@@ -63,11 +59,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash .github/install_latest_buildah.sh
 
       - name: Create Dockerfile
         run: |
@@ -113,10 +104,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     env:
       PROJECT_DIR: spring-petclinic
@@ -142,11 +129,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash .github/install_latest_buildah.sh
 
       - name: Checkout spring-petclinic project
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

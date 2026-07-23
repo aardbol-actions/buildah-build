@@ -43,10 +43,6 @@ jobs:
     env:
       IMAGE_NAME: hello-world-multiarch
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     steps:
 
@@ -54,11 +50,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: "buildah-build"
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash buildah-build/.github/install_latest_buildah.sh
 
       - name: Install qemu dependency
         run: |
@@ -112,10 +103,6 @@ jobs:
     env:
       IMAGE_NAME: hello-world-multiplatform
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     steps:
 
@@ -123,11 +110,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: "buildah-build"
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash buildah-build/.github/install_latest_buildah.sh
 
       - name: Install qemu dependency
         run: |
@@ -180,10 +162,6 @@ jobs:
     env:
       IMAGE_NAME: spring-petclinic-multiarch
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     steps:
 
@@ -191,11 +169,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: "buildah-build"
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash buildah-build/.github/install_latest_buildah.sh
 
       - name: Install qemu dependency
         run: |
