@@ -2,7 +2,6 @@
 
 ## v3.0.3
 - Bump `@typescript-eslint/parser` and `@typescript-eslint/eslint-plugin` to `8.66.0`
-- Bump `typescript-eslint` to `^8.66.0`
 - Bump `@types/node` to `26.1.2`
 - Bump `@vercel/ncc` to `0.44.1`
 - Bump `undici` to `6.28.0`
