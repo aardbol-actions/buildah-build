@@ -31,7 +31,7 @@
     "@aardbol-actions/tsconfig": "2.0.0",
     "@eslint/js": "^10.0.1",
     "@types/ini": "4.1.1",
-    "@types/node": "^26.0",
+    "@types/node": "^26.1",
     "@typescript-eslint/eslint-plugin": "8.62.0",
     "@typescript-eslint/parser": "8.62.0",
     "@vercel/ncc": "0.44.1",
