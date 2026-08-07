@@ -1,5 +1,18 @@
 # buildah-build Changelog
 
+## v3.0.3
+- Bump `@typescript-eslint/parser` and `@typescript-eslint/eslint-plugin` to `8.66.0`
+- Bump `typescript-eslint` to `^8.66.0`
+- Bump `@types/node` to `26.1.2`
+- Bump `@vercel/ncc` to `0.44.1`
+- Bump `undici` to `6.28.0`
+- Bump GitHub Actions: `actions/checkout` to `7.0.1`, `actions/setup-java` to `5.7.0`
+- Bump GitHub Actions (security): `github/codeql-action` to `4.37.6`
+- Bump GitHub Actions (security): `ossf/scorecard-action` to `2.4.4`
+- Bump GitHub Actions (CI): `lycheeverse/lychee-action` to `2.9.0`, `dorny/paths-filter` to `4.0.2`
+- Bump `docker/metadata-action` to `6.2.0`
+- CI: group dependabot updates, avoid duplicate runs, set global read permission
+
 ## v3.0.2
 - Migrate from `redhat-actions` namespace to `aardbol-actions`:
   - Update all `@redhat-actions/*` devDependencies to `@aardbol-actions/*`
