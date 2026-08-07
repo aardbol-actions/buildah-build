@@ -5,6 +5,7 @@
 
 import * as core from "@actions/core";
 import * as io from "@actions/io";
+import * as fs from "fs";
 import * as path from "path";
 import { Inputs, Outputs } from "./generated/inputs-outputs";
 import { BuildahCli, BuildahConfigSettings } from "./buildah";
@@ -18,15 +19,40 @@ export async function run(): Promise<void> {
         throw new Error("buildah, and therefore this action, only works on Linux. Please use a Linux runner.");
     }
 
-    // get buildah cli
-    const buildahPath = await io.which("buildah", true);
-    const cli: BuildahCli = new BuildahCli(buildahPath);
+    // Try to find buildah, fall back to podman for containerfile builds
+    let buildahPath: string;
+    let usePodman = false;
+    try {
+        buildahPath = await io.which("buildah", true);
+    }
+    catch (_err) {
+        core.info("buildah not found, looking for podman as fallback...");
+        buildahPath = await io.which("podman", true);
+        usePodman = true;
+        core.info("Using podman as a fallback for buildah. Scratch builds are not supported in this mode.");
+    }
+    const cli: BuildahCli = new BuildahCli(buildahPath, usePodman);
 
-    // print buildah version
+    // Check if user wants to run buildah from a container image
+    const buildahImage = core.getInput(Inputs.BUILDAH_IMAGE);
+    if (buildahImage) {
+        if (usePodman) {
+            core.info("buildah-image input is ignored when using podman fallback");
+        }
+        else {
+            const podmanPath = await io.which("podman", true);
+            const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+            await cli.enableContainerMode(buildahImage, podmanPath, workspace);
+        }
+    }
+
+    // print version
     await cli.execute([ "version" ], { group: true });
 
     // Check if fuse-overlayfs exists and find the storage driver
-    await cli.setStorageOptsEnv();
+    if (!usePodman && !buildahImage) {
+        await cli.setStorageOptsEnv();
+    }
 
     const DEFAULT_TAG = "latest";
     const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -36,6 +62,8 @@ export async function run(): Promise<void> {
     const tagsList: string[] = tags.trim().split(/\s+/);
     const labels = core.getInput(Inputs.LABELS);
     const labelsList: string[] = labels ? splitByNewline(labels) : [];
+    const annotations = core.getInput(Inputs.ANNOTATIONS);
+    const annotationsList: string[] = annotations ? splitByNewline(annotations) : [];
 
     const normalizedTagsList: string[] = [];
     let isNormalized = false;
@@ -96,10 +124,17 @@ export async function run(): Promise<void> {
             archs,
             platforms,
             labelsList,
+            annotationsList,
             buildahExtraArgs
         ));
     }
     else {
+        if (usePodman) {
+            throw new Error(
+                "Scratch builds (without containerfiles) require buildah and are not supported "
+                + "when using the podman fallback."
+            );
+        }
         if (platforms.length > 0) {
             throw new Error("The --platform option is not supported for builds without containerfiles.");
         }
@@ -148,6 +183,25 @@ export async function run(): Promise<void> {
     core.setOutput(Outputs.DIGEST, digest);
 }
 
+async function verifyImageArch(cli: BuildahCli, image: string, expectedArch: string): Promise<void> {
+    try {
+        const result = await cli.inspectArch(image);
+        const actualArch = result.output.trim();
+        if (actualArch && actualArch !== expectedArch) {
+            core.warning(
+                `Image "${image}" was requested for architecture "${expectedArch}" `
+                + `but was actually built for "${actualArch}". `
+                + `This usually means the base image does not support the "${expectedArch}" architecture. `
+                + `The resulting image will not run correctly on ${expectedArch} systems.`
+            );
+        }
+    }
+    catch (_err) {
+        // Don't fail the build if arch verification fails — it's a best-effort check
+        core.debug(`Could not verify architecture for image "${image}"`);
+    }
+}
+
 async function doBuildUsingContainerFiles(
     cli: BuildahCli,
     newImage: string,
@@ -157,6 +211,7 @@ async function doBuildUsingContainerFiles(
     archs: string[],
     platforms: string[],
     labels: string[],
+    annotations: string[],
     extraArgs: string[]
 ): Promise<string[]> {
     if (containerFiles.length === 1) {
@@ -168,56 +223,84 @@ async function doBuildUsingContainerFiles(
 
     const context = path.join(workspace, core.getInput(Inputs.CONTEXT));
     const buildArgs = getInputList(Inputs.BUILD_ARGS);
-    const containerFileAbsPaths = containerFiles.map((file) => path.join(workspace, file));
+    const containerFileAbsPaths = containerFiles.map((file) => {
+        // If the path is absolute, use it as-is
+        if (path.isAbsolute(file)) {
+            return file;
+        }
+        // Check if the file exists relative to the workspace (backward compat)
+        const workspacePath = path.join(workspace, file);
+        if (fs.existsSync(workspacePath)) {
+            return workspacePath;
+        }
+        // Otherwise, resolve relative to the context directory (Docker-compatible behavior)
+        const contextPath = path.join(context, file);
+        if (fs.existsSync(contextPath)) {
+            core.info(`Resolved containerfile "${file}" relative to context directory "${context}"`);
+            return contextPath;
+        }
+        // Fall back to workspace-relative path and let buildah report the error
+        return workspacePath;
+    });
     const layers = core.getInput(Inputs.LAYERS);
     const tlsVerify = core.getInput(Inputs.TLS_VERIFY) === "true";
 
-    const builtImage = [];
+    const builtImage: string[] = [];
     // since multi arch image can not have same tag
     // therefore, appending arch/platform in the tag
     if (archs.length > 0 || platforms.length > 0) {
-        for (const arch of archs) {
-            // handling it seperately as, there is no need of
-            // tagSuffix if only one image has to be built
+        // Build all architectures in parallel for faster multi-arch builds
+        const archBuilds = archs.map(async (arch) => {
             let tagSuffix = "";
             if (archs.length > 1) {
                 tagSuffix = `-${removeIllegalCharacters(arch)}`;
             }
+            const imageTag = `${newImage}${tagSuffix}`;
             await cli.buildUsingDocker(
-                `${newImage}${tagSuffix}`,
+                imageTag,
                 context,
                 containerFileAbsPaths,
                 buildArgs,
                 useOCI,
                 labels,
+                annotations,
                 layers,
                 extraArgs,
                 tlsVerify,
                 arch
             );
-            builtImage.push(`${newImage}${tagSuffix}`);
-        }
+            await verifyImageArch(cli, imageTag, arch);
+            return imageTag;
+        });
 
-        for (const platform of platforms) {
+        const platformBuilds = platforms.map(async (platform) => {
             let tagSuffix = "";
             if (platforms.length > 1) {
                 tagSuffix = `-${removeIllegalCharacters(platform)}`;
             }
+            const imageTag = `${newImage}${tagSuffix}`;
+            // Platform format is os/arch (e.g., linux/arm64)
+            const expectedArch = platform.includes("/") ? platform.split("/")[1] : platform;
             await cli.buildUsingDocker(
-                `${newImage}${tagSuffix}`,
+                imageTag,
                 context,
                 containerFileAbsPaths,
                 buildArgs,
                 useOCI,
                 labels,
+                annotations,
                 layers,
                 extraArgs,
                 tlsVerify,
                 undefined,
                 platform
             );
-            builtImage.push(`${newImage}${tagSuffix}`);
-        }
+            await verifyImageArch(cli, imageTag, expectedArch);
+            return imageTag;
+        });
+
+        const results = await Promise.all([ ...archBuilds, ...platformBuilds ]);
+        builtImage.push(...results);
     }
 
     else if (archs.length === 1 || platforms.length === 1) {
@@ -228,6 +311,7 @@ async function doBuildUsingContainerFiles(
             buildArgs,
             useOCI,
             labels,
+            annotations,
             layers,
             extraArgs,
             tlsVerify,
@@ -244,6 +328,7 @@ async function doBuildUsingContainerFiles(
             buildArgs,
             useOCI,
             labels,
+            annotations,
             layers,
             extraArgs,
             tlsVerify
@@ -267,9 +352,10 @@ async function doBuildFromScratch(
     const baseImage = core.getInput(Inputs.BASE_IMAGE, { required: true });
     const content = getInputList(Inputs.CONTENT);
     const entrypoint = getInputList(Inputs.ENTRYPOINT);
-    const port = core.getInput(Inputs.PORT);
+    const ports = getInputList(Inputs.PORT);
     const workingDir = core.getInput(Inputs.WORKDIR);
     const envs = getInputList(Inputs.ENVS);
+    const squash = core.getInput(Inputs.SQUASH) === "true";
     const tlsVerify = core.getInput(Inputs.TLS_VERIFY) === "true";
 
     const container = await cli.from(baseImage, tlsVerify, extraArgs);
@@ -284,7 +370,7 @@ async function doBuildFromScratch(
             }
             const newImageConfig: BuildahConfigSettings = {
                 entrypoint,
-                port,
+                ports,
                 workingdir: workingDir,
                 envs,
                 arch,
@@ -292,21 +378,21 @@ async function doBuildFromScratch(
             };
             await cli.config(containerId, newImageConfig);
             await cli.copy(containerId, content);
-            await cli.commit(containerId, `${newImage}${tagSuffix}`, useOCI);
+            await cli.commit(containerId, `${newImage}${tagSuffix}`, useOCI, squash);
             builtImage.push(`${newImage}${tagSuffix}`);
         }
     }
     else {
         const newImageConfig: BuildahConfigSettings = {
             entrypoint,
-            port,
+            ports,
             workingdir: workingDir,
             envs,
             labels,
         };
         await cli.config(containerId, newImageConfig);
         await cli.copy(containerId, content);
-        await cli.commit(containerId, newImage, useOCI);
+        await cli.commit(containerId, newImage, useOCI, squash);
         builtImage.push(newImage);
     }
 

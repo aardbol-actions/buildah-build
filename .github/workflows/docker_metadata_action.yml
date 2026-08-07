@@ -36,10 +36,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     env:
       IMAGE_NAME: "hello-world"
@@ -64,11 +60,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
 
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash .github/install_latest_buildah.sh
-
       - name: Create Dockerfile
         run: |
           cat > Containerfile<<EOF
@@ -83,6 +74,7 @@ jobs:
           layers: false
           tags: ${{ steps.docker-metadata.outputs.tags }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
+          annotations: ${{ steps.docker-metadata.outputs.annotations }}
           containerfiles: |
             ./Containerfile
           extra-args: |
@@ -102,6 +94,8 @@ jobs:
           set -x
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Labels."org.opencontainers.image.title"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Labels."org.opencontainers.image.description"'
+          buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Annotations."org.opencontainers.image.title"'
+          buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Annotations."org.opencontainers.image.description"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.Docker.config.Labels."org.opencontainers.image.title"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.Docker.config.Labels."org.opencontainers.image.description"'
 
@@ -110,10 +104,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
 
     env:
       PROJECT_DIR: spring-petclinic
@@ -140,11 +130,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
 
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash .github/install_latest_buildah.sh
-
       - name: Checkout spring-petclinic project
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -169,6 +154,7 @@ jobs:
         with:
           tags: ${{ steps.docker-metadata.outputs.tags }}
           labels: ${{ steps.docker-metadata.outputs.labels }}
+          annotations: ${{ steps.docker-metadata.outputs.annotations }}
           base-image: 'registry.access.redhat.com/ubi9/openjdk-17:latest'
           content: |
             ./spring-petclinic/target/spring-petclinic-*.jar
@@ -194,5 +180,7 @@ jobs:
           set -x
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Labels."org.opencontainers.image.title"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Labels."org.opencontainers.image.description"'
+          buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Annotations."org.opencontainers.image.title"'
+          buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.OCIv1.config.Annotations."org.opencontainers.image.description"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.Docker.config.Labels."org.opencontainers.image.title"'
           buildah inspect ${{ steps.build_image.outputs.image-with-tag }} | jq '.Docker.config.Labels."org.opencontainers.image.description"'

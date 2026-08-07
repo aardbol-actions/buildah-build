@@ -39,22 +39,12 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        install_latest: [ true, false ]
-
     steps:
 
       - name: Checkout Buildah action
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: "buildah-build"
-
-      - name: Install latest buildah
-        if: matrix.install_latest
-        run: |
-          bash buildah-build/.github/install_latest_buildah.sh
 
       - name: Create Dockerfile
         run: |
@@ -74,6 +64,90 @@ jobs:
             ./Containerfile
           extra-args: |
             --pull
+
+      - name: Echo Outputs
+        run: |
+          echo "Image: ${{ steps.build_image.outputs.image }}"
+          echo "Tags: ${{ steps.build_image.outputs.tags }}"
+          echo "Tagged Image: ${{ steps.build_image.outputs.image-with-tag }}"
+          echo "Image Digest: ${{ steps.build_image.outputs.digest }}"
+
+      - name: Check images created
+        run: buildah images | grep '${{ env.IMAGE_NAME }}'
+
+  build-case-normalization:
+    name: Build with mixed-case names
+    needs: changes
+    if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    env:
+      IMAGE_NAME: ImageCaseTest
+      IMAGE_TAGS: v1 TagCaseTest
+    steps:
+
+      - name: Checkout Buildah action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: "buildah-build"
+
+      - name: Create Dockerfile
+        run: |
+          cat > Containerfile<<EOF
+          FROM busybox
+          RUN echo "hello world"
+          EOF
+
+      - name: Build Image
+        id: build_image
+        uses: ./buildah-build/
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          layers: false
+          tags: ${{ env.IMAGE_TAGS }}
+          containerfiles: |
+            ./Containerfile
+          extra-args: |
+            --pull
+
+      - name: Echo Outputs
+        run: |
+          echo "Image: ${{ steps.build_image.outputs.image }}"
+          echo "Tags: ${{ steps.build_image.outputs.tags }}"
+          echo "Tagged Image: ${{ steps.build_image.outputs.image-with-tag }}"
+          echo "Image Digest: ${{ steps.build_image.outputs.digest }}"
+
+      - name: Check images created
+        run: buildah images
+
+  build-containerized:
+    name: Build with containerized buildah
+    needs: changes
+    if: ${{ needs.changes.outputs.action == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    steps:
+
+      - name: Checkout Buildah action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: "buildah-build"
+
+      - name: Create Dockerfile
+        run: |
+          cat > Containerfile<<EOF
+          FROM busybox
+          RUN echo "hello world"
+          EOF
+
+      - name: Build Image
+        id: build_image
+        uses: ./buildah-build/
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          layers: false
+          tags: 'latest ${{ github.sha }}'
+          containerfiles: |
+            ./Containerfile
+          buildah-image: quay.io/buildah/stable
 
       - name: Echo Outputs
         run: |

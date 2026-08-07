@@ -38,3 +38,14 @@ jobs:
         uses: aardbol-actions/common/action-io-generator@a237273f41dc217821aff666362bd4aa739b18f9 # v2.0.1
         with:
           io_file: ${{ env.IO_FILE }}
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - run: npm ci
+
+      - run: npm test

@@ -5,40 +5,103 @@
 
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
-import * as path from "path";
 import CommandResult from "./types";
 import { isStorageDriverOverlay, findFuseOverlayfsPath, getFullImageName } from "./utils";
 
 export interface BuildahConfigSettings {
     entrypoint?: string[];
     envs?: string[];
-    port?: string;
+    ports?: string[];
     workingdir?: string;
     arch?: string;
     labels?: string[];
+    annotations?: string[];
 }
 
 interface Buildah {
     buildUsingDocker(
         image: string, context: string, containerFiles: string[], buildArgs: string[],
-        useOCI: boolean, labels: string[], layers: string,
+        useOCI: boolean, labels: string[], annotations: string[], layers: string,
         extraArgs: string[], tlsVerify: boolean, arch?: string, platform?: string,
     ): Promise<CommandResult>;
     from(baseImage: string, tlsVerify: boolean, extraArgs: string[]): Promise<CommandResult>;
     config(container: string, setting: BuildahConfigSettings): Promise<CommandResult>;
-    copy(container: string, contentToCopy: string[]): Promise<CommandResult | undefined>;
-    commit(container: string, newImageName: string, useOCI: boolean): Promise<CommandResult>;
+    copy(container: string, contentToCopy: string[], contentPath?: string): Promise<CommandResult | undefined>;
+    commit(container: string, newImageName: string, useOCI: boolean, squash: boolean): Promise<CommandResult>;
+    tag(imageName: string, tags: string[]): Promise<void>;
+    manifestRm(manifest: string): Promise<void>;
     manifestCreate(manifest: string): Promise<void>;
-    manifestAdd(manifest: string, imageName: string, tags: string[]): Promise<void>;
+    manifestAdd(manifest: string, image: string): Promise<void>;
+    inspect(image: string): Promise<CommandResult>;
+    inspectArch(image: string): Promise<CommandResult>;
 }
 
 export class BuildahCli implements Buildah {
     private readonly executable: string;
 
+    private readonly usePodman: boolean;
+
+    private containerImage = "";
+
+    private podmanPath = "";
+
+    private workspace = "";
+
+    private storageRoot = "";
+
     public storageOptsEnv = "";
 
-    constructor(executable: string) {
+    constructor(executable: string, usePodman: boolean = false) {
         this.executable = executable;
+        this.usePodman = usePodman;
+    }
+
+    async enableContainerMode(containerImage: string, podmanPath: string, workspace: string): Promise<void> {
+        this.containerImage = containerImage;
+        this.podmanPath = podmanPath;
+        this.workspace = workspace;
+
+        this.storageRoot = await this.getGraphRoot(podmanPath);
+
+        core.info(`Pulling buildah container image "${containerImage}"...`);
+        await exec.exec(podmanPath, [ "pull", containerImage ]);
+        core.info(`Buildah will run inside container image "${containerImage}"`);
+    }
+
+    private static readonly DEFAULT_STORAGE_ROOT = "/var/lib/containers/storage";
+
+    private async getGraphRoot(podmanPath: string): Promise<string> {
+        let graphRoot = "";
+        try {
+            const exitCode = await exec.exec(
+                podmanPath,
+                [ "info", "--format", "{{.Store.GraphRoot}}" ],
+                {
+                    silent: true,
+                    listeners: {
+                        stdline: (line): void => {
+                            if (line.trim()) {
+                                graphRoot = line.trim();
+                            }
+                        },
+                    },
+                },
+            );
+            if (exitCode !== 0 || !graphRoot) {
+                throw new Error(`podman info exited with code ${exitCode}`);
+            }
+        }
+        catch (_err) {
+            core.warning(
+                `Could not detect container storage root via "podman info". `
+                + `Falling back to "${BuildahCli.DEFAULT_STORAGE_ROOT}". `
+                + `If you encounter permission errors, ensure this path is accessible `
+                + `or run the action as root.`
+            );
+            graphRoot = BuildahCli.DEFAULT_STORAGE_ROOT;
+        }
+        core.info(`Using container storage root: ${graphRoot}`);
+        return graphRoot;
     }
 
     // Checks for storage driver if found "overlay",
@@ -72,13 +135,14 @@ export class BuildahCli implements Buildah {
         buildArgs: string[],
         useOCI: boolean,
         labels: string[],
+        annotations: string[],
         layers: string,
         extraArgs: string[],
         tlsVerify: boolean,
         arch?: string,
         platform?: string
     ): Promise<CommandResult> {
-        const args: string[] = [ "bud" ];
+        const args: string[] = [ this.usePodman ? "build" : "bud" ];
         if (arch) {
             args.push("--arch");
             args.push(arch);
@@ -95,6 +159,12 @@ export class BuildahCli implements Buildah {
             args.push("--label");
             args.push(label);
         });
+        if (useOCI) {
+            annotations.forEach((annotation) => {
+                args.push("--annotation");
+                args.push(annotation);
+            });
+        }
         buildArgs.forEach((buildArg) => {
             args.push("--build-arg");
             args.push(buildArg);
@@ -146,13 +216,15 @@ export class BuildahCli implements Buildah {
         core.debug("config");
         core.debug(container);
         const args: string[] = [ "config" ];
-        if (settings.entrypoint) {
+        if (settings.entrypoint && settings.entrypoint.length > 0) {
             args.push("--entrypoint");
             args.push(BuildahCli.convertArrayToStringArg(settings.entrypoint));
         }
-        if (settings.port) {
-            args.push("--port");
-            args.push(settings.port);
+        if (settings.ports) {
+            settings.ports.forEach((port) => {
+                args.push("--port");
+                args.push(port);
+            });
         }
         if (settings.envs) {
             settings.envs.forEach((env) => {
@@ -178,14 +250,15 @@ export class BuildahCli implements Buildah {
         return this.execute(args);
     }
 
-    async commit(container: string, newImageName: string, useOCI: boolean): Promise<CommandResult> {
+    async commit(container: string, newImageName: string, useOCI: boolean, squash: boolean): Promise<CommandResult> {
         core.debug("commit");
         core.debug(container);
         core.debug(newImageName);
-        const args: string[] = [
-            "commit", ...BuildahCli.getImageFormatOption(useOCI),
-            "--squash", container, newImageName,
-        ];
+        const args: string[] = [ "commit", ...BuildahCli.getImageFormatOption(useOCI) ];
+        if (squash) {
+            args.push("--squash");
+        }
+        args.push(container, newImageName);
         return this.execute(args);
     }
 
@@ -237,7 +310,16 @@ export class BuildahCli implements Buildah {
     }
 
     async inspect(image: string): Promise<CommandResult> {
-        const args: string[] = [ "inspect", "--format", "{{.FromImageDigest}}", image ];
+        const args: string[] = [ "images", "--format", "{{.Digest}}", image ];
+        return this.execute(args);
+    }
+
+    async inspectArch(image: string): Promise<CommandResult> {
+        if (this.usePodman) {
+            const args: string[] = [ "image", "inspect", "--format", "{{.Architecture}}", image ];
+            return this.execute(args);
+        }
+        const args: string[] = [ "inspect", "--type", "image", "--format", "{{.OCIv1.architecture}}", image ];
         return this.execute(args);
     }
 
@@ -253,8 +335,6 @@ export class BuildahCli implements Buildah {
         args: string[],
         execOptions: exec.ExecOptions & { group?: boolean } = {},
     ): Promise<CommandResult> {
-        // ghCore.info(`${EXECUTABLE} ${args.join(" ")}`)
-
         let stdout = "";
         let stderr = "";
 
@@ -270,8 +350,36 @@ export class BuildahCli implements Buildah {
             },
         };
 
+        // Determine the actual executable and args based on container mode
+        let actualExecutable: string;
+        let actualArgs: string[];
+
+        if (this.containerImage) {
+            // Run buildah inside a container with shared storage
+            actualExecutable = this.podmanPath;
+            actualArgs = [
+                "run", "--rm",
+                "--privileged",
+                "--network", "host",
+                "--security-opt", "label=disable",
+                "-v", `${this.storageRoot}:${this.storageRoot}`,
+                "-v", `${this.workspace}:${this.workspace}`,
+                "-w", this.workspace,
+                this.containerImage,
+                "buildah",
+                "--root", this.storageRoot,
+                ...args,
+            ];
+        }
+        else {
+            actualExecutable = this.executable;
+            actualArgs = args;
+        }
+
         if (execOptions.group) {
-            const groupName = [ this.executable, ...args ].join(" ");
+            const groupName = this.containerImage
+                ? [ "buildah", ...args ].join(" ") + ` (via ${this.containerImage})`
+                : [ this.executable, ...args ].join(" ");
             core.startGroup(groupName);
         }
 
@@ -283,19 +391,19 @@ export class BuildahCli implements Buildah {
             }
         });
 
-        if (this.storageOptsEnv) {
+        if (this.storageOptsEnv && !this.containerImage) {
             execEnv.STORAGE_OPTS = this.storageOptsEnv;
         }
 
         finalExecOptions.env = execEnv;
 
         try {
-            const exitCode = await exec.exec(this.executable, args, finalExecOptions);
+            const exitCode = await exec.exec(actualExecutable, actualArgs, finalExecOptions);
 
             if (execOptions.ignoreReturnCode !== true && exitCode !== 0) {
                 // Throwing the stderr as part of the Error makes the stderr
                 // show up in the action outline, which saves some clicking when debugging.
-                let error = `${path.basename(this.executable)} exited with code ${exitCode}`;
+                let error = `buildah exited with code ${exitCode}`;
                 if (stderr) {
                     error += `\n${stderr}`;
                 }

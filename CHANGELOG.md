@@ -1,5 +1,28 @@
 # buildah-build Changelog
 
+## v3.1.0
+### New Features
+- Add `annotations` input to set OCI image annotations (only applied when OCI format is enabled)
+- Add `squash` input (default: `true`) to make layer squashing optional
+- Add `buildah-image` input to run buildah from a container image (e.g. `quay.io/buildah/stable`) instead of the host-installed version
+- Fall back to `podman` when `buildah` is not installed (containerfile builds only)
+- Build multi-architecture images in parallel for faster builds
+- Support multiple ports in scratch builds (newline-separated `port` input)
+
+### Bug Fixes
+- Fix empty `entrypoint` being set when the input is not provided
+- Resolve containerfile paths relative to the context directory (Docker-compatible), falling back to workspace-relative paths
+- Fix `digest` output to return the built image's content digest instead of the base image's digest
+- Detect the container storage root at runtime instead of hardcoding `/var/lib/containers/storage` (fixes rootless runner permission errors)
+- Pass `--root` to containerized buildah so all invocations share storage (fixes "image not known" errors)
+
+### CI & Infrastructure
+- Add vitest unit test suite and a `test` job in CI
+- Add `build-containerized` and case-normalization test jobs to the containerfile build workflow
+- Remove broken `install_latest_buildah.sh` and simplify CI matrices
+- Add workflow to rebuild the bundle on Dependabot PRs
+- Migrate ESLint config from CommonJS (`.js`) to ESM (`.mjs`)
+
 ## v3.0.3
 - Bump `@typescript-eslint/parser` and `@typescript-eslint/eslint-plugin` to `8.66.0`
 - Bump `@types/node` to `26.1.2`

@@ -1,14 +1,14 @@
-const tseslint = require("typescript-eslint");
-const js = require("@eslint/js");
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 
-module.exports = tseslint.config(
+export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     languageOptions: {
       parserOptions: {
         project: true,
-        tsconfigRootDir: __dirname,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
   },
@@ -95,6 +95,15 @@ module.exports = tseslint.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "out/", "lib/", ".eslintrc.js", "eslint.config.js"],
+    files: ["src/generated/**"],
+    rules: {
+      "max-len": 0,
+    },
+  },
+  {
+    ignores: [
+      "dist/", "node_modules/", "out/", "lib/", ".eslintrc.js", "eslint.config.mjs",
+      "vitest.config.ts", "src/**/*.test.ts",
+    ],
   },
 );

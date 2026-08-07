@@ -1,6 +1,6 @@
 {
   "name": "buildah-build",
-  "version": "3.0.3",
+  "version": "3.1.0",
   "engines": {
     "node": "24"
   },
@@ -15,7 +15,8 @@
     "bundle": "ncc build src/index.ts --source-map --minify",
     "clean": "rm -rf out/ dist/",
     "lint": "eslint . --max-warnings=0",
-    "generate-ios": "npx action-io-generator -w -o ./src/generated/inputs-outputs.ts"
+    "generate-ios": "npx action-io-generator -w -o ./src/generated/inputs-outputs.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "Red Hat",
@@ -37,6 +38,7 @@
     "@vercel/ncc": "0.44.1",
     "eslint": "10.6.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.66.0"
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
   }
 }

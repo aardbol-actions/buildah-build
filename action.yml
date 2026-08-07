@@ -15,6 +15,9 @@ inputs:
   labels:
     description: 'The labels of the image to build. Seperate by newline. For example, "io.containers.capabilities=sys_admin,mknod".'
     required: false
+  annotations:
+    description: 'The annotations of the image to build. Seperate by newline. For example, "org.opencontainers.image.version=1.5.6". Only supported by OCI images.'
+    required: false
   base-image:
     description: 'The base image to use to create a new container image'
     required: false
@@ -38,7 +41,7 @@ inputs:
     description: 'Set to true to cache intermediate layers during build process'
     required: false
   port:
-    description: 'The port to expose when running containers based on image'
+    description: 'The port(s) to expose when running containers based on image. Separate multiple ports by newline.'
     required: false
   workdir:
     description: 'The working directory to use within the container'
@@ -48,6 +51,10 @@ inputs:
     required: false
   build-args:
     description: 'List of --build-args to pass to buildah'
+    required: false
+  squash:
+    description: 'Set to true to squash all image layers into a single layer'
+    default: 'true'
     required: false
   oci:
     description: 'Set to true to build using the OCI image format instead of the Docker image format'
@@ -82,6 +89,12 @@ inputs:
       Require HTTPS and verify certificates when accessing the registry. Defaults to true.
     required: false
     default: 'true'
+  buildah-image:
+    description: |
+      Run buildah from this container image instead of using the host-installed buildah.
+      Useful for getting a newer buildah version than what the runner provides.
+      For example, "quay.io/buildah/stable" or "quay.io/buildah/upstream".
+    required: false
 outputs:
   image:
     description: 'Name of the image built'
