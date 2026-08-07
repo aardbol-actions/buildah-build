@@ -1,23 +1,31 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: daily
-    groups:
-      actions-deps:
-        patterns:
-          - '@actions/*'
-      types:
-        patterns:
-          - '@types/*'
-      eslint:
-        patterns:
-          - '@redhat-actions/eslint-config'
-          - '@typescript-eslint/*'
-          - eslint
-
   - package-ecosystem: github-actions
+    commit-message:
+      prefix: chore(actions)
     directory: /
     schedule:
-      interval: daily
+      interval: weekly
+      day: monday
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
+
+  - package-ecosystem: npm
+    commit-message:
+      prefix: chore(npm)
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: devcontainers # https://containers.dev/guide/dependabot
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      devcontainers:
+        patterns:
+          - "*"
